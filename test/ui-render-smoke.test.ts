@@ -392,6 +392,11 @@ test("memory and workspace sections expose editable file workbenches", async () 
   assert(source.includes('${escapeHtml(t("Available views", "可切换查看"))}'));
   assert(source.includes('const agentProfileFiles = ["MEMORY.md"];'));
   assert(!source.includes('const agentProfileFiles = ["MEMORY.md", "USER.md", "SOUL.md", "IDENTITY.md"];'));
+  assert(source.includes('const SHARED_DOCUMENT_FILE_CANDIDATES = ['));
+  assert(source.includes('const AGENT_DOCUMENT_FILE_CANDIDATES = ['));
+  assert(source.includes('"IDENTITY.md"'));
+  assert(source.includes('"SOUL.md"'));
+  assert(source.includes('"BOOTSTRAP.md"'));
   assert(source.includes("listMemoryFacetOptions()"));
   assert(source.includes("listWorkspaceFacetOptions()"));
   assert(source.includes("facetOptions: memoryFacetOptions"));
@@ -428,8 +433,6 @@ test("memory and workspace sections expose editable file workbenches", async () 
   assert(source.includes("renderQuotaResetScript()"));
   assert(source.includes("new Intl.DateTimeFormat(undefined"));
   assert(source.includes("OPENCLAW_WORKSPACE_ROOT"));
-  assert(source.includes("SHARED_DOCUMENT_FILE_CANDIDATES"));
-  assert(source.includes("AGENT_DOCUMENT_FILE_CANDIDATES"));
   assert(source.includes("保存后会直接写回源文件"));
   assert(source.includes("renderFileWorkbenchScript()"));
   assert(source.includes('t("Staff overview", "员工总览")'));

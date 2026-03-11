@@ -1,5 +1,23 @@
 # Progress
 
+## Phase 142 (Documents workbench now includes identity and soul markdown files) — Completed
+- Scope:
+  - Fix the document workbench so Main and active agents expose their `IDENTITY.md` and `SOUL.md` files instead of hiding them behind an overly narrow core-doc whitelist.
+  - Keep memory workbench behavior unchanged.
+- Changed files:
+  - `src/ui/server.ts`
+  - `test/ui-render-smoke.test.ts`
+  - `docs/PROGRESS.md`
+- Implementation:
+  - Added `IDENTITY.md` and `SOUL.md` to both the Main document candidates and per-agent document candidates.
+  - Added `BOOTSTRAP.md` to Main document candidates so root-level operator identity/bootstrap docs stay visible together.
+  - Updated document ordering so identity/soul/bootstrap files appear near the top of each document group instead of being buried at the bottom.
+  - Extended the UI smoke source assertions to lock these document candidates into the workbench configuration.
+- Verification:
+  - `npm run build`
+  - `npm test`
+  - `npm run smoke:ui`
+
 ## Phase 141 (README install prompt now handles heterogeneous OpenClaw environments) — Completed
 - Scope:
   - Make the OpenClaw setup mega prompt robust for users whose machine, subscription state, agent roster, or data sources differ from the maintainer's environment.

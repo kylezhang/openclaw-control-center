@@ -156,6 +156,9 @@ const WORKSPACE_EDITABLE_EXTENSIONS = new Set([".md", ".markdown"]);
 const MEMORY_EDITABLE_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
 const SHARED_DOCUMENT_FILE_CANDIDATES = [
   "AGENTS.md",
+  "IDENTITY.md",
+  "SOUL.md",
+  "BOOTSTRAP.md",
   "HEARTBEAT.md",
   "TOOLS.md",
   join(".learnings", "LEARNINGS.md"),
@@ -163,6 +166,8 @@ const SHARED_DOCUMENT_FILE_CANDIDATES = [
 ] as const;
 const AGENT_DOCUMENT_FILE_CANDIDATES = [
   "AGENTS.md",
+  "IDENTITY.md",
+  "SOUL.md",
   "HEARTBEAT.md",
   "TOOLS.md",
   "README.md",
@@ -8280,10 +8285,12 @@ function documentFilePriority(relativePath: string): number {
   const fileName = basename(relativePath).toLowerCase();
   const order = [
     "agents.md",
+    "identity.md",
+    "soul.md",
+    "bootstrap.md",
     "heartbeat.md",
     "tools.md",
     "readme.md",
-    "bootstrap.md",
     "notebook.md",
     "focus.md",
     "inbox.md",

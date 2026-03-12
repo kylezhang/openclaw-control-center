@@ -1,5 +1,22 @@
 # Progress
 
+## Phase 149 (Repo completeness checks added to install docs) — Completed
+- Scope:
+  - Prevent install agents from misdiagnosing the repo as incomplete when they are in the wrong directory or a bad checkout.
+- Changed files:
+  - `README.md`
+  - `README.en.md`
+  - `INSTALL_PROMPT.md`
+  - `INSTALL_PROMPT.en.md`
+  - `docs/PROGRESS.md`
+- Implementation:
+  - Replaced clone placeholders with the canonical public GitHub URL.
+  - Added explicit repo-completeness checks for `package.json`, `src/runtime`, `src/ui`, and `.env.example`.
+  - Added recovery steps that instruct OpenClaw to re-clone the canonical repo instead of asking for missing runtime code when the checkout is wrong or incomplete.
+- Verification:
+  - `npm run build`
+  - `npm run release:audit`
+
 ## Phase 148 (README setup copy rewritten for users) — Completed
 - Scope:
   - Remove author-facing wording from the public setup section and make the install copy read like user-facing product documentation.

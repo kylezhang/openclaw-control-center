@@ -122,11 +122,23 @@ UI_MODE=true npm run dev
 
 ### 2. 安装项目
 ```bash
-git clone <你的仓库地址>
+git clone https://github.com/TianyiDataScience/openclaw-control-center.git
 cd control-center
 npm install
 cp .env.example .env
 ```
+
+如果你的 OpenClaw 说“仓库缺少 `src/runtime`”或“缺少核心源码”，先不要改代码。这个仓库的标准结构本来就包含：
+- `package.json`
+- `src/runtime`
+- `src/ui`
+- `.env.example`
+
+这类报错通常意味着：
+- 当前目录不是 `openclaw-control-center` 仓库根目录
+- clone 到了错误仓库
+- checkout / 下载不完整
+- agent 在错误 workspace 里执行
 
 ### 3. 默认推荐：让你自己的 OpenClaw 直接完成安装与接线
 最推荐的接入方式，不是你手动一项项配，而是直接把下面这段安装指令交给你自己的 OpenClaw。
@@ -194,11 +206,20 @@ cp .env.example .env
 
 第二阶段：安装项目
 9. 确认当前目录是 control-center 仓库根目录。
-10. 运行依赖安装。
-11. 如果 `.env` 不存在，就从 `.env.example` 创建；如果存在，就在保留安全默认值的前提下修正它。不要删除用户已有的无关安全配置，只改这次接线真正需要的项。
+10. 先确认仓库本体完整。至少检查这些路径真实存在：
+   - `package.json`
+   - `src/runtime`
+   - `src/ui`
+   - `.env.example`
+11. 如果缺少 `src/runtime`、`src/ui` 或 `package.json`，不要继续安装，也不要猜源码去哪了。直接把它判定为“错误仓库 / 不完整 checkout / 错误工作目录”，并执行：
+   - 退出当前错误目录
+   - 重新 clone：`https://github.com/TianyiDataScience/openclaw-control-center.git`
+   - 进入新 clone 的仓库根目录后再继续
+12. 运行依赖安装。
+13. 如果 `.env` 不存在，就从 `.env.example` 创建；如果存在，就在保留安全默认值的前提下修正它。不要删除用户已有的无关安全配置，只改这次接线真正需要的项。
 
 第三阶段：配置安全首次接入
-12. 保持这些值：
+14. 保持这些值：
    - READONLY_MODE=true
    - LOCAL_TOKEN_AUTH_REQUIRED=true
    - APPROVAL_ACTIONS_ENABLED=false
@@ -206,32 +227,32 @@ cp .env.example .env
    - IMPORT_MUTATION_ENABLED=false
    - IMPORT_MUTATION_DRY_RUN=false
    - UI_MODE=false
-13. 只有在本机环境确实不同的时候，才修改：
+15. 只有在本机环境确实不同的时候，才修改：
    - GATEWAY_URL
    - OPENCLAW_HOME
    - CODEX_HOME
    - OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH
    - UI_PORT
-14. 如果这台机器是通过 provider API key / 自定义 LLM 提供商运行 OpenClaw，而不是通过 Codex / GPT 订阅运行，不要把这当成错误；只要 OpenClaw 自己能工作，就继续安装，并明确说明订阅额度与部分 provider-specific 卡片可能不可见。
-15. 如果 `CODEX_HOME` 不存在，或者这台机器根本没有 Codex / GPT 订阅数据，不要强行填假路径；保留为空，并在结果里明确说明“Usage / Subscription 将部分可见或不可见”。
-16. 如果订阅快照不存在，不要伪造 `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH`；继续安装，并明确说明订阅额度相关卡片会显示未连接或估算状态。
-17. 如果 `4310` 被占用，选择一个空闲本地端口并写入 `UI_PORT`，然后把新地址明确告诉我。
-18. 不要因为我的 agent roster 和示例仓库不同就改应用逻辑；控制中心应该根据我机器自己的 OpenClaw 配置和运行时数据来显示 agent。
+16. 如果这台机器是通过 provider API key / 自定义 LLM 提供商运行 OpenClaw，而不是通过 Codex / GPT 订阅运行，不要把这当成错误；只要 OpenClaw 自己能工作，就继续安装，并明确说明订阅额度与部分 provider-specific 卡片可能不可见。
+17. 如果 `CODEX_HOME` 不存在，或者这台机器根本没有 Codex / GPT 订阅数据，不要强行填假路径；保留为空，并在结果里明确说明“Usage / Subscription 将部分可见或不可见”。
+18. 如果订阅快照不存在，不要伪造 `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH`；继续安装，并明确说明订阅额度相关卡片会显示未连接或估算状态。
+19. 如果 `4310` 被占用，选择一个空闲本地端口并写入 `UI_PORT`，然后把新地址明确告诉我。
+20. 不要因为我的 agent roster 和示例仓库不同就改应用逻辑；控制中心应该根据我机器自己的 OpenClaw 配置和运行时数据来显示 agent。
 
 第四阶段：验证安装
-19. 运行：
+21. 运行：
    - npm run build
    - npm test
    - npm run smoke:ui
-20. 如果有任何一步失败，停止并告诉我：
+22. 如果有任何一步失败，停止并告诉我：
    - 哪一步失败了
    - 原因是什么
    - 我下一步该怎么修
-21. 如果 build / test / smoke 通过，但 live Gateway 仍不可达，也不要把这次接入判定为失败；要把结果归类为“本地 UI 已可用，但 live 观测尚未接通”。
-22. 如果 OpenClaw 自己因为外部 provider 凭证缺失而无法产出实时数据，也不要误判为 control-center 安装失败；要单独归类为“控制中心已装好，但上游 OpenClaw 前置条件未满足”。
+23. 如果 build / test / smoke 通过，但 live Gateway 仍不可达，也不要把这次接入判定为失败；要把结果归类为“本地 UI 已可用，但 live 观测尚未接通”。
+24. 如果 OpenClaw 自己因为外部 provider 凭证缺失而无法产出实时数据，也不要误判为 control-center 安装失败；要单独归类为“控制中心已装好，但上游 OpenClaw 前置条件未满足”。
 
 第五阶段：交付可启动结果
-23. 如果验证通过，输出：
+25. 如果验证通过，输出：
    - 你实际修改了哪些 env 值
    - 最终 `.env` 中哪些值沿用了默认值
    - 我下一步启动 UI 的准确命令

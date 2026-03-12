@@ -43,11 +43,20 @@ Phase 1: inspect the environment
 
 Phase 2: install the project
 9. Confirm that the current directory is the control-center repo root.
-10. Install dependencies.
-11. If `.env` does not exist, create it from `.env.example`. If it already exists, update it while preserving safe first-run defaults. Do not delete unrelated user settings; only change the keys required for this connection.
+10. First verify the repo is complete. At minimum, confirm these paths exist:
+   - `package.json`
+   - `src/runtime`
+   - `src/ui`
+   - `.env.example`
+11. If `src/runtime`, `src/ui`, or `package.json` is missing, do not continue and do not guess where the code should come from. Classify it as "wrong repo / incomplete checkout / wrong working directory", then:
+   - leave the incorrect directory
+   - re-clone `https://github.com/TianyiDataScience/openclaw-control-center.git`
+   - continue only after entering the new repo root
+12. Install dependencies.
+13. If `.env` does not exist, create it from `.env.example`. If it already exists, update it while preserving safe first-run defaults. Do not delete unrelated user settings; only change the keys required for this connection.
 
 Phase 3: apply safe first-run settings
-12. Keep these values:
+14. Keep these values:
    - READONLY_MODE=true
    - LOCAL_TOKEN_AUTH_REQUIRED=true
    - APPROVAL_ACTIONS_ENABLED=false
@@ -55,32 +64,32 @@ Phase 3: apply safe first-run settings
    - IMPORT_MUTATION_ENABLED=false
    - IMPORT_MUTATION_DRY_RUN=false
    - UI_MODE=false
-13. Only change these when the machine actually requires it:
+15. Only change these when the machine actually requires it:
    - GATEWAY_URL
    - OPENCLAW_HOME
    - CODEX_HOME
    - OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH
    - UI_PORT
-14. If this machine runs OpenClaw on provider API keys or a non-Codex backend instead of a Codex / GPT subscription, do not treat that as an error. Continue the install as long as OpenClaw itself can run, and say clearly that subscription/quota surfaces may be partially visible or unavailable.
-15. If `CODEX_HOME` does not exist, or this machine simply does not have Codex / GPT subscription data, do not invent a path. Leave it unset and say clearly that Usage / Subscription will be partially visible or unavailable.
-16. If no subscription snapshot exists, do not fabricate `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH`. Continue the install and say that quota/subscription cards will show disconnected or estimated states.
-17. If `4310` is already in use, choose a free local port, write it to `UI_PORT`, and report the new address clearly.
-18. Do not change application logic just because my agent roster differs from the examples in this repo. The control center should reflect the agents configured or visible on my own machine.
+16. If this machine runs OpenClaw on provider API keys or a non-Codex backend instead of a Codex / GPT subscription, do not treat that as an error. Continue the install as long as OpenClaw itself can run, and say clearly that subscription/quota surfaces may be partially visible or unavailable.
+17. If `CODEX_HOME` does not exist, or this machine simply does not have Codex / GPT subscription data, do not invent a path. Leave it unset and say clearly that Usage / Subscription will be partially visible or unavailable.
+18. If no subscription snapshot exists, do not fabricate `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH`. Continue the install and say that quota/subscription cards will show disconnected or estimated states.
+19. If `4310` is already in use, choose a free local port, write it to `UI_PORT`, and report the new address clearly.
+20. Do not change application logic just because my agent roster differs from the examples in this repo. The control center should reflect the agents configured or visible on my own machine.
 
 Phase 4: verify the install
-19. Run:
+21. Run:
    - npm run build
    - npm test
    - npm run smoke:ui
-20. If any step fails, stop and tell me:
+22. If any step fails, stop and tell me:
    - which step failed
    - why it failed
    - what I should do next
-21. If build / test / smoke pass but the live Gateway is still unreachable, do not classify the install as failed. Classify it as "local UI ready, live observability not connected yet".
-22. If OpenClaw itself cannot produce live data because external provider credentials are missing, do not call that a control-center install failure. Classify it separately as "control center installed, upstream OpenClaw prerequisite missing".
+23. If build / test / smoke pass but the live Gateway is still unreachable, do not classify the install as failed. Classify it as "local UI ready, live observability not connected yet".
+24. If OpenClaw itself cannot produce live data because external provider credentials are missing, do not call that a control-center install failure. Classify it separately as "control center installed, upstream OpenClaw prerequisite missing".
 
 Phase 5: hand off a ready-to-run result
-23. If verification passes, print:
+25. If verification passes, print:
    - which env values you changed
    - which env values stayed on the defaults
    - the exact command I should run next to launch the UI

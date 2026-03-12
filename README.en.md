@@ -143,7 +143,7 @@ cp .env.example .env
 ```
 
 ### 3. Recommended default: let your own OpenClaw do the install and setup
-The best first-run path is not manual setup. The best path is to give your own OpenClaw one installation prompt and let it do the safe wiring for you.
+The best first-run path is not manual setup. The best path is to give your own OpenClaw one install instruction block and let it do the safe wiring for you.
 
 If you want a copy-ready standalone file, use:
 - [INSTALL_PROMPT.en.md](INSTALL_PROMPT.en.md)
@@ -157,7 +157,7 @@ It should handle:
 - `build / test / smoke`
 - a final summary of what to run and what to open
 
-This prompt should also cover the common differences across users:
+This install instruction already accounts for common real-world differences such as:
 - no GPT / Codex subscription, or no readable subscription snapshot
 - OpenClaw running on API keys or non-Codex providers (for example OpenAI API, Anthropic, OpenRouter, or another provider backend)
 - non-default `~/.openclaw`, `~/.codex`, Gateway URL, or UI port
@@ -167,7 +167,7 @@ This prompt should also cover the common differences across users:
 - missing `node` / `npm`, no npm-registry connectivity, or insufficient write permissions in the repo
 - missing optional data sources where the control center should still come up safely in read-only mode
 
-Give OpenClaw this full prompt:
+Copy the full block below into OpenClaw:
 
 ```text
 You are installing and connecting OpenClaw Control Center to this machine's OpenClaw environment.

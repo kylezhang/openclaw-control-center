@@ -1,5 +1,20 @@
 # Progress
 
+## Phase 148 (README setup copy rewritten for users) — Completed
+- Scope:
+  - Remove author-facing wording from the public setup section and make the install copy read like user-facing product documentation.
+- Changed files:
+  - `README.md`
+  - `README.en.md`
+  - `docs/PROGRESS.md`
+- Implementation:
+  - Replaced `mega prompt` with clearer install-instruction wording in Chinese.
+  - Replaced `This prompt should also cover...` with user-facing language that states the install block already accounts for common situations.
+  - Reworded the handoff line so users are told to copy the block directly into OpenClaw.
+- Verification:
+  - `npm run build`
+  - `npm run release:audit`
+
 ## Phase 147 (Standalone install prompt files added) — Completed
 - Scope:
   - Make the public install prompt easier to copy without forcing users to extract it from the README.

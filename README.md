@@ -129,7 +129,7 @@ cp .env.example .env
 ```
 
 ### 3. 默认推荐：让你自己的 OpenClaw 直接完成安装与接线
-最推荐的接入方式，不是你手动一项项配，而是直接把下面这段 mega prompt 交给你自己的 OpenClaw。
+最推荐的接入方式，不是你手动一项项配，而是直接把下面这段安装指令交给你自己的 OpenClaw。
 
 如果你想直接复制独立文件，用这个：
 - [INSTALL_PROMPT.md](INSTALL_PROMPT.md)
@@ -143,7 +143,7 @@ cp .env.example .env
 - 跑 `build / test / smoke`
 - 告诉你最后该执行什么命令、该看哪些页面
 
-这段 prompt 应该覆盖这些常见差异：
+这段安装指令已经考虑了这些常见情况：
 - 用户没有 GPT / Codex 订阅，或者没有可读的订阅快照
 - 用户的 OpenClaw 底层不是订阅，而是 API key / 其他 provider（例如 OpenAI API、Anthropic、OpenRouter 等）
 - `~/.openclaw`、`~/.codex`、Gateway 地址、端口都不是默认值
@@ -153,7 +153,7 @@ cp .env.example .env
 - 机器缺少 `node` / `npm`、没有 npm registry 网络、或者仓库目录没有写权限
 - 某些数据源缺失，但控制中心仍然应该先以“安全只读”方式跑起来
 
-把下面整段原样交给 OpenClaw：
+直接把下面整段原样交给 OpenClaw：
 
 ```text
 你现在要帮我把 OpenClaw Control Center 安装并接到这台机器自己的 OpenClaw 环境上。

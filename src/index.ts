@@ -59,17 +59,29 @@ async function start(): Promise<void> {
     return;
   }
 
-  await runMonitorOnce(adapter);
+  if (UI_MODE) {
+    startUiServer(UI_PORT, client);
+  }
+
+  const runMonitorSafely = async (): Promise<void> => {
+    try {
+      await runMonitorOnce(adapter);
+    } catch (error) {
+      console.error("[mission-control] monitor failed", error);
+    }
+  };
+
+  if (UI_MODE) {
+    void runMonitorSafely();
+  } else {
+    await runMonitorSafely();
+  }
 
   if (CONTINUOUS_MODE) {
     const intervalMs = monitorIntervalMs();
     setInterval(() => {
-      void runMonitorOnce(adapter);
+      void runMonitorSafely();
     }, intervalMs);
-  }
-
-  if (UI_MODE) {
-    startUiServer(UI_PORT, client);
   }
 }
 

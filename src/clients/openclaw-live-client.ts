@@ -27,6 +27,11 @@ interface SessionCacheItem {
   sessionFile?: string;
 }
 
+interface SessionHistoryFileReadResult {
+  response?: SessionsHistoryResponse;
+  status: "ok" | "missing" | "error";
+}
+
 const ACTIVE_SESSION_STATES = new Set([
   "running",
   "active",
@@ -61,7 +66,7 @@ const FALLBACK_ACTIVE_RECENCY_WINDOW_MS = 45 * 60 * 1000;
 const SESSION_HISTORY_TAIL_MIN_LINES = 80;
 const SESSION_HISTORY_TAIL_LINE_MULTIPLIER = 8;
 const SESSION_HISTORY_TAIL_CHUNK_BYTES = 64 * 1024;
-const SESSION_HISTORY_RECOVERY_TIMEOUT_MS = 1_500;
+const SESSION_HISTORY_RECOVERY_TIMEOUT_MS = 400;
 
 /**
  * Live read client using official OpenClaw CLI JSON outputs.
@@ -145,11 +150,18 @@ export class OpenClawLiveClient implements ToolClient {
     }
     if (sessionFile) {
       const fromFile = await readSessionHistoryFile(sessionFile, limit);
-      if (fromFile) return fromFile;
-      // Cached/session-store file paths can go stale. Try a bounded CLI
-      // recovery path before giving up so we do not silently swallow history.
+      if (fromFile.response) return fromFile.response;
+      if (fromFile.status === "missing") {
+        // Known-missing session files are common for stale slash/direct store
+        // entries. Returning empty immediately avoids stacking slow recovery
+        // calls across every dashboard render.
+        return { rawText: "" };
+      }
+      // Cached/session-store file paths can go stale or become unreadable.
+      // Keep recovery bounded so one bad session cannot stall the whole page.
       return readSessionHistoryFromCli(sessionKey, limit, {
         timeoutMs: SESSION_HISTORY_RECOVERY_TIMEOUT_MS,
+        fastRecovery: true,
       });
     }
     return readSessionHistoryFromCli(sessionKey, limit);
@@ -362,13 +374,18 @@ async function runText(
 async function readSessionHistoryFromCli(
   sessionKey: string,
   limit: number,
-  options?: { timeoutMs?: number },
+  options?: { timeoutMs?: number; fastRecovery?: boolean },
 ): Promise<SessionsHistoryResponse> {
-  const attempts: string[][] = [
-    ["sessions", "history", sessionKey, "--json", "--limit", String(limit)],
-    ["sessions", "history", sessionKey, "--limit", String(limit), "--json"],
-    ["sessions", "history", sessionKey, "--json"],
-  ];
+  const attempts: string[][] = options?.fastRecovery
+    ? [
+        ["sessions", "history", sessionKey, "--json", "--limit", String(limit)],
+        ["sessions", "history", sessionKey, "--json"],
+      ]
+    : [
+        ["sessions", "history", sessionKey, "--json", "--limit", String(limit)],
+        ["sessions", "history", sessionKey, "--limit", String(limit), "--json"],
+        ["sessions", "history", sessionKey, "--json"],
+      ];
 
   for (const args of attempts) {
     try {
@@ -380,6 +397,10 @@ async function readSessionHistoryFromCli(
     } catch {
       continue;
     }
+  }
+
+  if (options?.fastRecovery) {
+    return { rawText: "" };
   }
 
   try {
@@ -426,6 +447,10 @@ function isUnknownLimitOptionError(error: unknown): boolean {
   return /unknown option '--limit'/.test(error.message);
 }
 
+function isFsNotFound(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
+}
+
 function asString(v: unknown): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
@@ -450,17 +475,29 @@ function normalizeLimit(input: number | undefined): number {
 async function readSessionHistoryFile(
   sessionFile: string,
   limit: number,
-): Promise<SessionsHistoryResponse | undefined> {
+): Promise<SessionHistoryFileReadResult> {
   const targetLineCount = Math.max(limit * SESSION_HISTORY_TAIL_LINE_MULTIPLIER, SESSION_HISTORY_TAIL_MIN_LINES);
   try {
     const raw = await readRecentSessionHistoryChunk(sessionFile, targetLineCount);
-    return normalizeSessionHistoryChunk(raw, limit);
-  } catch {
+    return {
+      response: normalizeSessionHistoryChunk(raw, limit),
+      status: "ok",
+    };
+  } catch (error) {
+    if (isFsNotFound(error)) {
+      return { status: "missing" };
+    }
     try {
       const raw = await readFile(sessionFile, "utf8");
-      return normalizeSessionHistoryChunk(raw, limit);
-    } catch {
-      return undefined;
+      return {
+        response: normalizeSessionHistoryChunk(raw, limit),
+        status: "ok",
+      };
+    } catch (nestedError) {
+      if (isFsNotFound(nestedError)) {
+        return { status: "missing" };
+      }
+      return { status: "error" };
     }
   }
 }

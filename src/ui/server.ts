@@ -553,6 +553,12 @@ let renderCollaborationPreviewInFlight:
       value: Promise<SessionConversationListResult>;
     }
   | undefined;
+let renderRecentToolCallsCache:
+  | { snapshotAt: string; value: number; expiresAt: number }
+  | undefined;
+let renderRecentToolCallsInFlight:
+  | { snapshotAt: string; value: Promise<number> }
+  | undefined;
 let renderUsageCostSummaryCache:
   | { snapshotKey: string; value: UsageCostSnapshot; expiresAt: number }
   | undefined;
@@ -2458,18 +2464,71 @@ async function loadOpenclawCronCatalog(language: UiLanguage): Promise<OpenclawCr
 
 async function countRecentToolCalls(snapshot: ReadModelSnapshot, toolClient: ToolClient): Promise<number> {
   if (!Array.isArray(snapshot.sessions) || snapshot.sessions.length === 0) return 0;
-  const recentSessions = await listSessionConversations({
+
+  const now = Date.now();
+  const previewSnapshotKey = buildConversationSnapshotKey({
+    snapshot,
+    pageSize: 12,
+    historyLimit: 5,
+  });
+  if (
+    renderRecentToolCallsCache &&
+    renderRecentToolCallsCache.snapshotAt === snapshot.generatedAt &&
+    renderRecentToolCallsCache.expiresAt > now
+  ) {
+    return renderRecentToolCallsCache.value;
+  }
+
+  if (
+    renderSessionPreviewCache &&
+    renderSessionPreviewCache.snapshotKey === previewSnapshotKey &&
+    renderSessionPreviewCache.expiresAt > now &&
+    renderSessionPreviewCache.value.total <= renderSessionPreviewCache.value.items.length
+  ) {
+    const value = renderSessionPreviewCache.value.items.reduce((sum, item) => {
+      if (typeof item.toolEventCount === "number") return sum + item.toolEventCount;
+      return sum + (item.latestKind === "tool_event" ? 1 : 0);
+    }, 0);
+    renderRecentToolCallsCache = {
+      snapshotAt: snapshot.generatedAt,
+      value,
+      expiresAt: now + HTML_HEAVY_CACHE_TTL_MS,
+    };
+    return value;
+  }
+
+  if (renderRecentToolCallsInFlight?.snapshotAt === snapshot.generatedAt) {
+    return renderRecentToolCallsInFlight.value;
+  }
+
+  const nextValue = listSessionConversations({
     snapshot,
     client: toolClient,
     filters: {},
     page: 1,
     pageSize: 20,
     historyLimit: 6,
-  });
-  return recentSessions.items.reduce((sum, item) => {
+  }).then((recentSessions) => recentSessions.items.reduce((sum, item) => {
     if (typeof item.toolEventCount === "number") return sum + item.toolEventCount;
     return sum + (item.latestKind === "tool_event" ? 1 : 0);
-  }, 0);
+  }, 0));
+  renderRecentToolCallsInFlight = {
+    snapshotAt: snapshot.generatedAt,
+    value: nextValue,
+  };
+  try {
+    const value = await nextValue;
+    renderRecentToolCallsCache = {
+      snapshotAt: snapshot.generatedAt,
+      value,
+      expiresAt: now + HTML_HEAVY_CACHE_TTL_MS,
+    };
+    return value;
+  } finally {
+    if (renderRecentToolCallsInFlight?.snapshotAt === snapshot.generatedAt) {
+      renderRecentToolCallsInFlight = undefined;
+    }
+  }
 }
 
 async function buildGlobalVisibilityViewModel(
@@ -4809,6 +4868,13 @@ async function renderHtml(
           filters: {},
           items: [],
         };
+  const previewToolCallsCount =
+    sessionPreview.total > 0 && sessionPreview.total <= sessionPreview.items.length
+      ? sessionPreview.items.reduce((sum, item) => {
+          if (typeof item.toolEventCount === "number") return sum + item.toolEventCount;
+          return sum + (item.latestKind === "tool_event" ? 1 : 0);
+        }, 0)
+      : undefined;
   const sessionRows = renderSessionPreviewRows(sessionPreview.items, options.language);
   markRenderPhase("session-preview");
   const [cronOverview, openclawCronJobs, replayPreview, usageCost, officeRoster, officePresence, avatarPreferences] = await Promise.all([
@@ -4983,6 +5049,7 @@ async function renderHtml(
         strongTaskEvidenceCount: taskCertaintyStrongCount,
         followupTaskEvidenceCount: taskCertaintyFollowupCount,
         weakTaskEvidenceCount: taskCertaintyWeakCount,
+        toolCallsCount: previewToolCallsCount,
       })
     : undefined;
   const attentionCount = actionQueue.counts.unacked + runtimeIssueCount + nonOkBudgets.length;

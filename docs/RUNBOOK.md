@@ -19,32 +19,39 @@
 6. Optional continuous monitor: `npm run dev:continuous`
 
 ### Container startup
-1. Build the image:
-  - `docker build -t openclaw-control-center:local .`
-2. Validate the Docker delivery assets without running the full hall suite:
+1. Validate Docker delivery assets:
   - `npm run test:docker-assets`
-3. Standalone compose expects:
-  - `OPENCLAW_CONFIG_DIR` -> host `.openclaw` directory
-  - `OPENCLAW_WORKSPACE_DIR` -> host OpenClaw workspace directory
-  - optional `CONTROL_CENTER_PORT` -> published host port
-4. Start standalone compose:
+2. Determine the host paths for:
+  - `OPENCLAW_CONFIG_DIR`
+  - `OPENCLAW_WORKSPACE_DIR`
+  - if OpenClaw already runs in Docker:
+    - `docker inspect <gateway-container> --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}'`
+3. Create repo-root `.env` or export the same variables from the shell:
+  - `OPENCLAW_RUNTIME_IMAGE`
+  - `OPENCLAW_CONFIG_DIR`
+  - `OPENCLAW_WORKSPACE_DIR`
+  - optional `CONTROL_CENTER_PORT`
+  - optional `DOCKER_GATEWAY_URL`
+4. Prepare `./runtime`:
+  - `mkdir -p runtime`
+  - `sudo chown -R 1000:1000 runtime`
+  - `sudo chmod -R u+rwX runtime`
+5. Start standalone compose:
   - `docker compose up -d --build`
-5. Health check:
+6. Verify:
+  - `docker compose ps`
   - `curl http://127.0.0.1:${CONTROL_CENTER_PORT:-4310}/healthz`
-6. Overlay onto the official OpenClaw Docker stack:
-  - keep `compose.openclaw-overlay.yml` first in `docker compose -f ...`
-  - example:
-    - `docker compose -f compose.openclaw-overlay.yml -f /path/to/openclaw/compose.yml up -d --build control-center`
-7. Merged compose validation:
+  - `docker compose logs -f control-center`
+7. Overlay onto the official OpenClaw stack:
+  - keep `compose.openclaw-overlay.yml` first
+  - `docker compose -f compose.openclaw-overlay.yml -f /path/to/openclaw/compose.yml up -d --build control-center`
+8. Validate merged compose output:
   - `docker compose -f compose.openclaw-overlay.yml -f /path/to/openclaw/compose.yml config`
-8. Permissions:
-  - container runtime expects writable bind mounts for `./runtime`
-  - image runs as `uid 1000` (`node`); if needed:
-    - `sudo chown -R 1000:1000 ./runtime ~/.openclaw /path/to/openclaw-workspace`
-9. Degraded-but-expected container states:
-  - missing `.codex` mount -> `Usage` / `Subscription` cards stay partial
-  - missing readable subscription snapshot -> subscription-specific cards stay partial
-  - Gateway down or upstream provider credentials missing -> UI still boots, live runtime panels degrade until OpenClaw is healthy
+9. Common container-side issues:
+  - `EACCES` on `/app/runtime/...` -> fix `./runtime` ownership
+  - unreadable `.openclaw` or workspace -> `sudo chmod -R a+rX /path/to/.openclaw /path/to/openclaw-workspace`
+  - missing `.codex` or subscription snapshot -> `Usage` / `Subscription` remain partial
+  - Gateway down or upstream credentials missing -> UI starts, live runtime panels degrade
 
 ## 3) Enable live mode safely
 1. Confirm baseline safety checks:

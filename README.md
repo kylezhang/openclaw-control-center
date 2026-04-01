@@ -112,75 +112,85 @@ Notes:
 - `npm run dev` only performs one monitor pass and does not start the HTTP UI.
 - If you want to reach the UI over Tailscale, set `OPENCLAW_CONTROL_UI_URL` to your Tailscale host or IP (for example `http://<tailscale-host>:4310/`). The UI will automatically bind to `0.0.0.0` unless you explicitly override `UI_BIND_ADDRESS`.
 
-## Docker deployment
-The container image runs the compiled server with the same safety-first defaults as the local install. It still needs access to your OpenClaw config and workspace, and richer `Usage` / `Subscription` cards remain partial unless you also mount host `.codex` data.
+## Docker Compose
+Use Docker Compose only. `compose.yml` builds the image from this repository and starts `control-center`.
 
-### Build the image
+### Requirements
+- A reachable OpenClaw Gateway
+- The host path for your live `.openclaw` directory
+- The host path for your OpenClaw workspace
+- A writable local `./runtime` directory for container user `uid 1000`
+
+### Find the host paths
+If OpenClaw runs directly on the host:
+- `OPENCLAW_CONFIG_DIR` is usually `~/.openclaw`
+- `OPENCLAW_WORKSPACE_DIR` is usually `~/.openclaw/workspace`, unless `openclaw.json` points somewhere else
+
+If OpenClaw already runs in Docker:
+
 ```bash
-docker build -t openclaw-control-center:local .
+docker inspect <openclaw-gateway-container> \
+  --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}'
 ```
 
-If you want to pin the runtime base image explicitly:
-```bash
-docker build \
-  --build-arg OPENCLAW_RUNTIME_IMAGE=ghcr.io/openclaw/openclaw:latest \
-  -t openclaw-control-center:local .
+Use the host path mounted into `/home/node/.openclaw` as `OPENCLAW_CONFIG_DIR`.
+Use the host path mounted into `/home/node/.openclaw/workspace` as `OPENCLAW_WORKSPACE_DIR`.
+
+### Standalone compose
+The examples below use repo-root `.env`. Shell exports work too.
+
+1. Create `.env` with the compose variables:
+
+```dotenv
+OPENCLAW_RUNTIME_IMAGE=ghcr.io/openclaw/openclaw:latest
+OPENCLAW_CONFIG_DIR=/absolute/path/to/.openclaw
+OPENCLAW_WORKSPACE_DIR=/absolute/path/to/openclaw-workspace
+CONTROL_CENTER_PORT=4310
+DOCKER_GATEWAY_URL=ws://host.docker.internal:18789
 ```
 
-### Run with docker
+2. Prepare the runtime directory:
+
 ```bash
 mkdir -p runtime
-docker run --rm \
-  -p 4310:4310 \
-  --add-host host.docker.internal:host-gateway \
-  -e GATEWAY_URL=ws://host.docker.internal:18789 \
-  -e UI_BIND_ADDRESS=0.0.0.0 \
-  -v "$(pwd)/runtime:/app/runtime" \
-  -v "$HOME/.openclaw:/home/node/.openclaw" \
-  -v "/path/to/openclaw-workspace:/home/node/.openclaw/workspace" \
-  openclaw-control-center:local
+sudo chown -R 1000:1000 runtime
+sudo chmod -R u+rwX runtime
 ```
 
-Optional:
-- mount `~/.codex` to `/home/node/.codex:ro` and keep `CODEX_HOME=/home/node/.codex` if you want richer `Usage` / `Subscription` insights
-- if your subscription snapshot lives outside `.openclaw`, add another mount and set `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH` inside the container
-
-Health check:
-```bash
-curl http://127.0.0.1:4310/healthz
-```
-
-### Run with docker compose
-Set the helper vars in your shell or repo `.env`, then start the standalone compose file:
+3. Start the service:
 
 ```bash
-export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
-export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
-export CONTROL_CENTER_PORT=4310
 docker compose up -d --build
 ```
 
-Verify:
+4. Verify:
+
 ```bash
 docker compose ps
 curl "http://127.0.0.1:${CONTROL_CENTER_PORT:-4310}/healthz"
+docker compose logs -f control-center
 ```
 
-Standalone compose defaults `GATEWAY_URL` to `ws://host.docker.internal:18789`, so it can reach an OpenClaw Gateway running on the host machine.
+5. Open:
+- `http://<host>:4310/?section=overview&lang=zh`
+- `http://<host>:4310/?section=overview&lang=en`
 
-### Overlay onto the official OpenClaw Docker stack
-Keep the control-center overlay file first so `build.context: .` resolves against this repository instead of the upstream stack:
+Notes:
+- `compose.yml` defaults the Gateway URL to `ws://host.docker.internal:18789`
+- If your OpenClaw deployment uses a local runtime image such as `openclaw:local`, set `OPENCLAW_RUNTIME_IMAGE=openclaw:local`
+
+### Overlay onto the official OpenClaw stack
+Keep `compose.openclaw-overlay.yml` first so `build.context: .` resolves against this repository.
 
 ```bash
-export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
-export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
 docker compose \
   -f compose.openclaw-overlay.yml \
   -f /path/to/openclaw/compose.yml \
   up -d --build control-center
 ```
 
-Merged config check:
+Check the merged config:
+
 ```bash
 docker compose \
   -f compose.openclaw-overlay.yml \
@@ -188,18 +198,19 @@ docker compose \
   config
 ```
 
-Overlay mode assumes the official stack exposes the Gateway service as `openclaw-gateway` on port `18789`.
+This mode assumes the upstream stack exposes the Gateway service as `openclaw-gateway` on port `18789`.
 
-### Permissions and degraded signals
-- The runtime image runs as `uid 1000` (`node`).
-- If your bind mounts are root-owned, fix them before starting:
+### Troubleshooting
+- `EACCES` on `/app/runtime/...`: fix `./runtime` ownership for `uid 1000`
+- `/healthz` is healthy but the dashboard is mostly empty: `OPENCLAW_CONFIG_DIR` or `OPENCLAW_WORKSPACE_DIR` is wrong
+- `.openclaw` or workspace is unreadable in the container:
 
 ```bash
-sudo chown -R 1000:1000 ./runtime ~/.openclaw /path/to/openclaw-workspace
+sudo chmod -R a+rX /path/to/.openclaw /path/to/openclaw-workspace
 ```
 
-- Without `.codex` or a readable subscription snapshot, the UI still starts; `Usage` / `Subscription` cards simply stay partial.
-- If the Gateway is down or upstream provider credentials are missing, the control center still boots, but live runtime panels degrade until OpenClaw itself is healthy.
+- Missing `.codex` or subscription snapshot: the UI still starts; `Usage` / `Subscription` stay partial
+- Gateway down or upstream provider credentials missing: the UI still starts; live runtime panels stay degraded until OpenClaw is healthy
 
 ## Section-by-section tour
 

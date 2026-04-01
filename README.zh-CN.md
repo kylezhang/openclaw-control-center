@@ -108,75 +108,85 @@ npm run dev:ui
 - 推荐用 `npm run dev:ui` 启动界面；它比 `UI_MODE=true npm run dev` 更稳，尤其是 Windows shell。
 - `npm run dev` 只会执行一次 monitor，不会启动 HTTP UI。
 
-## Docker 部署
-容器镜像会以和本地安装一致的安全默认值运行编译产物，但它仍然需要读取你的 OpenClaw 配置目录和工作区。若不额外挂载宿主机 `.codex`，`用量` / `订阅` 相关卡片会以降级方式显示。
+## Docker Compose
+这里只写 Docker Compose。`compose.yml` 会基于当前仓库构建镜像并启动 `control-center`。
 
-### 构建镜像
+### 前提
+- 一个可访问的 OpenClaw Gateway
+- 宿主机上的 `.openclaw` 目录路径
+- 宿主机上的 OpenClaw workspace 路径
+- 本地 `./runtime` 目录，并且它能被容器内 `uid 1000` 写入
+
+### 如何确认宿主机路径
+如果 OpenClaw 直接跑在宿主机上：
+- `OPENCLAW_CONFIG_DIR` 通常是 `~/.openclaw`
+- `OPENCLAW_WORKSPACE_DIR` 通常是 `~/.openclaw/workspace`，除非 `openclaw.json` 指向了别的路径
+
+如果 OpenClaw 已经跑在 Docker 里：
+
 ```bash
-docker build -t openclaw-control-center:local .
+docker inspect <openclaw-gateway-container> \
+  --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}'
 ```
 
-如果你想显式固定运行时基底镜像：
-```bash
-docker build \
-  --build-arg OPENCLAW_RUNTIME_IMAGE=ghcr.io/openclaw/openclaw:latest \
-  -t openclaw-control-center:local .
+把挂到 `/home/node/.openclaw` 的宿主机路径填给 `OPENCLAW_CONFIG_DIR`。
+把挂到 `/home/node/.openclaw/workspace` 的宿主机路径填给 `OPENCLAW_WORKSPACE_DIR`。
+
+### 独立 compose
+下面示例使用仓库根目录 `.env`。如果你更习惯 shell `export`，也可以用同样的变量名。
+
+1. 新建 `.env`：
+
+```dotenv
+OPENCLAW_RUNTIME_IMAGE=ghcr.io/openclaw/openclaw:latest
+OPENCLAW_CONFIG_DIR=/absolute/path/to/.openclaw
+OPENCLAW_WORKSPACE_DIR=/absolute/path/to/openclaw-workspace
+CONTROL_CENTER_PORT=4310
+DOCKER_GATEWAY_URL=ws://host.docker.internal:18789
 ```
 
-### 用 docker 直接运行
+2. 准备 `runtime` 目录：
+
 ```bash
 mkdir -p runtime
-docker run --rm \
-  -p 4310:4310 \
-  --add-host host.docker.internal:host-gateway \
-  -e GATEWAY_URL=ws://host.docker.internal:18789 \
-  -e UI_BIND_ADDRESS=0.0.0.0 \
-  -v "$(pwd)/runtime:/app/runtime" \
-  -v "$HOME/.openclaw:/home/node/.openclaw" \
-  -v "/path/to/openclaw-workspace:/home/node/.openclaw/workspace" \
-  openclaw-control-center:local
+sudo chown -R 1000:1000 runtime
+sudo chmod -R u+rwX runtime
 ```
 
-可选：
-- 如果你希望 `用量` / `订阅` 信息更完整，可以把 `~/.codex` 挂到 `/home/node/.codex:ro`，并保持 `CODEX_HOME=/home/node/.codex`
-- 如果订阅快照文件不在 `.openclaw` 目录里，再额外挂一个卷，并在容器内设置 `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH`
-
-健康检查：
-```bash
-curl http://127.0.0.1:4310/healthz
-```
-
-### 用 docker compose 运行
-先在 shell 或仓库 `.env` 中设置辅助变量，再启动独立 compose 文件：
+3. 启动：
 
 ```bash
-export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
-export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
-export CONTROL_CENTER_PORT=4310
 docker compose up -d --build
 ```
 
-验证：
+4. 验证：
+
 ```bash
 docker compose ps
 curl "http://127.0.0.1:${CONTROL_CENTER_PORT:-4310}/healthz"
+docker compose logs -f control-center
 ```
 
-独立 compose 默认把 `GATEWAY_URL` 指向 `ws://host.docker.internal:18789`，适合连接宿主机上的 OpenClaw Gateway。
+5. 打开：
+- `http://<host>:4310/?section=overview&lang=zh`
+- `http://<host>:4310/?section=overview&lang=en`
 
-### 叠加到官方 OpenClaw Docker 栈
-把 control-center 的 overlay 文件放在最前面，这样 `build.context: .` 才会相对当前仓库解析，而不是跑到上游 compose 目录：
+说明：
+- `compose.yml` 默认把 Gateway 指向 `ws://host.docker.internal:18789`
+- 如果你现有的 OpenClaw 运行时镜像就是本地镜像，比如 `openclaw:local`，把 `OPENCLAW_RUNTIME_IMAGE=openclaw:local` 写进 `.env`
+
+### 叠加到官方 OpenClaw 栈
+把 `compose.openclaw-overlay.yml` 放在最前面，这样 `build.context: .` 会相对当前仓库解析。
 
 ```bash
-export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
-export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
 docker compose \
   -f compose.openclaw-overlay.yml \
   -f /path/to/openclaw/compose.yml \
   up -d --build control-center
 ```
 
-合并结果检查：
+检查合并后的配置：
+
 ```bash
 docker compose \
   -f compose.openclaw-overlay.yml \
@@ -184,18 +194,19 @@ docker compose \
   config
 ```
 
-overlay 模式默认假设官方栈里的 Gateway 服务名是 `openclaw-gateway`，端口是 `18789`。
+这个模式默认要求上游栈里的 Gateway 服务名是 `openclaw-gateway`，端口是 `18789`。
 
-### 权限与降级说明
-- 运行时镜像默认以 `uid 1000`（`node`）启动。
-- 如果 bind mount 是 root 所有，建议先修正权限：
+### 排障
+- `/app/runtime/...` 报 `EACCES`：修正 `./runtime` 目录权限
+- `/healthz` 正常但页面内容很少：`OPENCLAW_CONFIG_DIR` 或 `OPENCLAW_WORKSPACE_DIR` 填错了
+- `.openclaw` 或 workspace 在容器里不可读：
 
 ```bash
-sudo chown -R 1000:1000 ./runtime ~/.openclaw /path/to/openclaw-workspace
+sudo chmod -R a+rX /path/to/.openclaw /path/to/openclaw-workspace
 ```
 
-- 没有 `.codex` 或没有可读订阅快照时，UI 仍然能启动，只是 `用量` / `订阅` 卡片会部分缺失。
-- 如果 Gateway 没启动，或者上游 provider 凭证本身缺失，控制中心依旧能启动，但实时面板会先降级，直到 OpenClaw 本体恢复正常。
+- 没有 `.codex` 或没有订阅快照：UI 能启动，但 `用量` / `订阅` 会部分缺失
+- Gateway 没启动，或者上游 provider 凭证有问题：UI 能启动，但实时面板会降级
 
 ## 分区功能说明
 

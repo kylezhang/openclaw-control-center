@@ -18,6 +18,34 @@
   - In restricted sandboxes, `listen EPERM` on `127.0.0.1:*` is environment-only (socket bind restriction), not a control-center functional regression.
 6. Optional continuous monitor: `npm run dev:continuous`
 
+### Container startup
+1. Build the image:
+  - `docker build -t openclaw-control-center:local .`
+2. Validate the Docker delivery assets without running the full hall suite:
+  - `npm run test:docker-assets`
+3. Standalone compose expects:
+  - `OPENCLAW_CONFIG_DIR` -> host `.openclaw` directory
+  - `OPENCLAW_WORKSPACE_DIR` -> host OpenClaw workspace directory
+  - optional `CONTROL_CENTER_PORT` -> published host port
+4. Start standalone compose:
+  - `docker compose up -d --build`
+5. Health check:
+  - `curl http://127.0.0.1:${CONTROL_CENTER_PORT:-4310}/healthz`
+6. Overlay onto the official OpenClaw Docker stack:
+  - keep `compose.openclaw-overlay.yml` first in `docker compose -f ...`
+  - example:
+    - `docker compose -f compose.openclaw-overlay.yml -f /path/to/openclaw/compose.yml up -d --build control-center`
+7. Merged compose validation:
+  - `docker compose -f compose.openclaw-overlay.yml -f /path/to/openclaw/compose.yml config`
+8. Permissions:
+  - container runtime expects writable bind mounts for `./runtime`
+  - image runs as `uid 1000` (`node`); if needed:
+    - `sudo chown -R 1000:1000 ./runtime ~/.openclaw /path/to/openclaw-workspace`
+9. Degraded-but-expected container states:
+  - missing `.codex` mount -> `Usage` / `Subscription` cards stay partial
+  - missing readable subscription snapshot -> subscription-specific cards stay partial
+  - Gateway down or upstream provider credentials missing -> UI still boots, live runtime panels degrade until OpenClaw is healthy
+
 ## 3) Enable live mode safely
 1. Confirm baseline safety checks:
   - `READONLY_MODE=true`

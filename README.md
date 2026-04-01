@@ -112,6 +112,95 @@ Notes:
 - `npm run dev` only performs one monitor pass and does not start the HTTP UI.
 - If you want to reach the UI over Tailscale, set `OPENCLAW_CONTROL_UI_URL` to your Tailscale host or IP (for example `http://<tailscale-host>:4310/`). The UI will automatically bind to `0.0.0.0` unless you explicitly override `UI_BIND_ADDRESS`.
 
+## Docker deployment
+The container image runs the compiled server with the same safety-first defaults as the local install. It still needs access to your OpenClaw config and workspace, and richer `Usage` / `Subscription` cards remain partial unless you also mount host `.codex` data.
+
+### Build the image
+```bash
+docker build -t openclaw-control-center:local .
+```
+
+If you want to pin the runtime base image explicitly:
+```bash
+docker build \
+  --build-arg OPENCLAW_RUNTIME_IMAGE=ghcr.io/openclaw/openclaw:latest \
+  -t openclaw-control-center:local .
+```
+
+### Run with docker
+```bash
+mkdir -p runtime
+docker run --rm \
+  -p 4310:4310 \
+  --add-host host.docker.internal:host-gateway \
+  -e GATEWAY_URL=ws://host.docker.internal:18789 \
+  -e UI_BIND_ADDRESS=0.0.0.0 \
+  -v "$(pwd)/runtime:/app/runtime" \
+  -v "$HOME/.openclaw:/home/node/.openclaw" \
+  -v "/path/to/openclaw-workspace:/home/node/.openclaw/workspace" \
+  openclaw-control-center:local
+```
+
+Optional:
+- mount `~/.codex` to `/home/node/.codex:ro` and keep `CODEX_HOME=/home/node/.codex` if you want richer `Usage` / `Subscription` insights
+- if your subscription snapshot lives outside `.openclaw`, add another mount and set `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH` inside the container
+
+Health check:
+```bash
+curl http://127.0.0.1:4310/healthz
+```
+
+### Run with docker compose
+Set the helper vars in your shell or repo `.env`, then start the standalone compose file:
+
+```bash
+export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
+export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
+export CONTROL_CENTER_PORT=4310
+docker compose up -d --build
+```
+
+Verify:
+```bash
+docker compose ps
+curl "http://127.0.0.1:${CONTROL_CENTER_PORT:-4310}/healthz"
+```
+
+Standalone compose defaults `GATEWAY_URL` to `ws://host.docker.internal:18789`, so it can reach an OpenClaw Gateway running on the host machine.
+
+### Overlay onto the official OpenClaw Docker stack
+Keep the control-center overlay file first so `build.context: .` resolves against this repository instead of the upstream stack:
+
+```bash
+export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
+export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
+docker compose \
+  -f compose.openclaw-overlay.yml \
+  -f /path/to/openclaw/compose.yml \
+  up -d --build control-center
+```
+
+Merged config check:
+```bash
+docker compose \
+  -f compose.openclaw-overlay.yml \
+  -f /path/to/openclaw/compose.yml \
+  config
+```
+
+Overlay mode assumes the official stack exposes the Gateway service as `openclaw-gateway` on port `18789`.
+
+### Permissions and degraded signals
+- The runtime image runs as `uid 1000` (`node`).
+- If your bind mounts are root-owned, fix them before starting:
+
+```bash
+sudo chown -R 1000:1000 ./runtime ~/.openclaw /path/to/openclaw-workspace
+```
+
+- Without `.codex` or a readable subscription snapshot, the UI still starts; `Usage` / `Subscription` cards simply stay partial.
+- If the Gateway is down or upstream provider credentials are missing, the control center still boots, but live runtime panels degrade until OpenClaw itself is healthy.
+
 ## Section-by-section tour
 
 ### Overview

@@ -108,6 +108,95 @@ npm run dev:ui
 - 推荐用 `npm run dev:ui` 启动界面；它比 `UI_MODE=true npm run dev` 更稳，尤其是 Windows shell。
 - `npm run dev` 只会执行一次 monitor，不会启动 HTTP UI。
 
+## Docker 部署
+容器镜像会以和本地安装一致的安全默认值运行编译产物，但它仍然需要读取你的 OpenClaw 配置目录和工作区。若不额外挂载宿主机 `.codex`，`用量` / `订阅` 相关卡片会以降级方式显示。
+
+### 构建镜像
+```bash
+docker build -t openclaw-control-center:local .
+```
+
+如果你想显式固定运行时基底镜像：
+```bash
+docker build \
+  --build-arg OPENCLAW_RUNTIME_IMAGE=ghcr.io/openclaw/openclaw:latest \
+  -t openclaw-control-center:local .
+```
+
+### 用 docker 直接运行
+```bash
+mkdir -p runtime
+docker run --rm \
+  -p 4310:4310 \
+  --add-host host.docker.internal:host-gateway \
+  -e GATEWAY_URL=ws://host.docker.internal:18789 \
+  -e UI_BIND_ADDRESS=0.0.0.0 \
+  -v "$(pwd)/runtime:/app/runtime" \
+  -v "$HOME/.openclaw:/home/node/.openclaw" \
+  -v "/path/to/openclaw-workspace:/home/node/.openclaw/workspace" \
+  openclaw-control-center:local
+```
+
+可选：
+- 如果你希望 `用量` / `订阅` 信息更完整，可以把 `~/.codex` 挂到 `/home/node/.codex:ro`，并保持 `CODEX_HOME=/home/node/.codex`
+- 如果订阅快照文件不在 `.openclaw` 目录里，再额外挂一个卷，并在容器内设置 `OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH`
+
+健康检查：
+```bash
+curl http://127.0.0.1:4310/healthz
+```
+
+### 用 docker compose 运行
+先在 shell 或仓库 `.env` 中设置辅助变量，再启动独立 compose 文件：
+
+```bash
+export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
+export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
+export CONTROL_CENTER_PORT=4310
+docker compose up -d --build
+```
+
+验证：
+```bash
+docker compose ps
+curl "http://127.0.0.1:${CONTROL_CENTER_PORT:-4310}/healthz"
+```
+
+独立 compose 默认把 `GATEWAY_URL` 指向 `ws://host.docker.internal:18789`，适合连接宿主机上的 OpenClaw Gateway。
+
+### 叠加到官方 OpenClaw Docker 栈
+把 control-center 的 overlay 文件放在最前面，这样 `build.context: .` 才会相对当前仓库解析，而不是跑到上游 compose 目录：
+
+```bash
+export OPENCLAW_CONFIG_DIR="$HOME/.openclaw"
+export OPENCLAW_WORKSPACE_DIR="/path/to/openclaw-workspace"
+docker compose \
+  -f compose.openclaw-overlay.yml \
+  -f /path/to/openclaw/compose.yml \
+  up -d --build control-center
+```
+
+合并结果检查：
+```bash
+docker compose \
+  -f compose.openclaw-overlay.yml \
+  -f /path/to/openclaw/compose.yml \
+  config
+```
+
+overlay 模式默认假设官方栈里的 Gateway 服务名是 `openclaw-gateway`，端口是 `18789`。
+
+### 权限与降级说明
+- 运行时镜像默认以 `uid 1000`（`node`）启动。
+- 如果 bind mount 是 root 所有，建议先修正权限：
+
+```bash
+sudo chown -R 1000:1000 ./runtime ~/.openclaw /path/to/openclaw-workspace
+```
+
+- 没有 `.codex` 或没有可读订阅快照时，UI 仍然能启动，只是 `用量` / `订阅` 卡片会部分缺失。
+- 如果 Gateway 没启动，或者上游 provider 凭证本身缺失，控制中心依旧能启动，但实时面板会先降级，直到 OpenClaw 本体恢复正常。
+
 ## 分区功能说明
 
 ### 总览

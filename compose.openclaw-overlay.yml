@@ -1,0 +1,41 @@
+# Keep this file first in `docker compose -f ...` so `build.context: .`
+# resolves against the control-center repository instead of the upstream stack.
+services:
+  control-center:
+    image: ${CONTROL_CENTER_IMAGE:-openclaw-control-center:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        OPENCLAW_RUNTIME_IMAGE: ${OPENCLAW_RUNTIME_IMAGE:-ghcr.io/openclaw/openclaw:latest}
+    depends_on:
+      - openclaw-gateway
+    restart: unless-stopped
+    ports:
+      - "${CONTROL_CENTER_PORT:-4310}:4310"
+    environment:
+      GATEWAY_URL: "ws://openclaw-gateway:18789"
+      UI_MODE: "true"
+      MONITOR_CONTINUOUS: "true"
+      UI_PORT: "4310"
+      UI_BIND_ADDRESS: "0.0.0.0"
+      OPENCLAW_HOME: "/home/node/.openclaw"
+      OPENCLAW_WORKSPACE_ROOT: "/home/node/.openclaw/workspace"
+      READONLY_MODE: "${READONLY_MODE:-true}"
+      LOCAL_TOKEN_AUTH_REQUIRED: "${LOCAL_TOKEN_AUTH_REQUIRED:-true}"
+      LOCAL_API_TOKEN: "${LOCAL_API_TOKEN:-}"
+      APPROVAL_ACTIONS_ENABLED: "${APPROVAL_ACTIONS_ENABLED:-false}"
+      APPROVAL_ACTIONS_DRY_RUN: "${APPROVAL_ACTIONS_DRY_RUN:-true}"
+      IMPORT_MUTATION_ENABLED: "${IMPORT_MUTATION_ENABLED:-false}"
+      IMPORT_MUTATION_DRY_RUN: "${IMPORT_MUTATION_DRY_RUN:-false}"
+      TASK_HEARTBEAT_ENABLED: "${TASK_HEARTBEAT_ENABLED:-true}"
+      TASK_HEARTBEAT_DRY_RUN: "${TASK_HEARTBEAT_DRY_RUN:-true}"
+      CODEX_HOME: "/home/node/.codex"
+      OPENCLAW_CONTROL_UI_URL: "${OPENCLAW_CONTROL_UI_URL:-}"
+      OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH: "${OPENCLAW_SUBSCRIPTION_SNAPSHOT_PATH:-}"
+    volumes:
+      - ./runtime:/app/runtime
+      - ${OPENCLAW_CONFIG_DIR:?set OPENCLAW_CONFIG_DIR to your host .openclaw directory}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:?set OPENCLAW_WORKSPACE_DIR to your host OpenClaw workspace directory}:/home/node/.openclaw/workspace
+      # Optional: mount host Codex state for richer Usage / Subscription insights.
+      # - ${CODEX_HOME_DIR}:/home/node/.codex:ro
